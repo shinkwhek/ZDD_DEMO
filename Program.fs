@@ -77,12 +77,49 @@ type Cfg =
     weightSum : int
     count : int}
 
+let search model =
+  let pathes = model.pathes
+  let f b e =
+    function
+    | (Node(e2, cfg), b2, _) when e=Node(e2,cfg) && b=b2 -> true
+    | _ -> false
+
+  let rec iter w ws =
+    match w with
+    | Leaf false -> Int32.MinValue, ws
+    | Leaf true -> 0, ws
+    | Node(elm, _) ->
+      let falseB = (fun (_,_,tl) -> tl) <| List.find (f false w) pathes
+      let trueB = (fun (_,_,tl) -> tl) <| List.find (f true w) pathes
+      let (a,wsa),(b,wsb) = iter falseB ws, iter trueB ws
+      if a > b+elm.value
+      then a, wsa
+      else b+elm.value, elm::wsb
+
+  let e0 = List.head model.elements
+  let init = (fun (h,_,_) -> h) <| List.find (function
+                                             | (Node(e2,_),_,_) when e0=e2 -> true
+                                             | _ -> false)
+                                           pathes
+  iter init []
+
 // ---- ---- ---- ---- ---- ----
+
 
 [<EntryPoint>]
 let main argv =
-  let elements = [ {weight=4;value=10}; {weight=4;value=15}; {weight=5;value=20} ]
-  let limitWeight = 8
+  let elements =
+    [ {value=981421680; weight=325}
+      {value=515936168; weight=845}
+      {value=17309336; weight=371}
+      {value=788067075; weight=112}
+      {value=104855562; weight=96}
+      {value=494541604; weight=960}
+      {value=32007355; weight=161}
+      {value=772339969; weight=581}
+      {value=55112800; weight=248}
+      {value=98577050; weight=22}]
+  let limitWeight = 2921
   let limitCount = 2
 
   let rootCfg elms =
@@ -140,13 +177,15 @@ let main argv =
         Node(a, cfg)
       | _, _ -> s
 
-    match belowLimitWeight model s x, eqLimitCount model s x with
-    | Leaf b1, Leaf b2 -> Leaf (b1 && b2)
-    | Node(e,cfg1), Node(_,cfg2) ->
-      let cfg = { cfg1 with count=cfg2.count }
-      Node(e, cfg)
-    | Node(e, cfg), _ | _, Node(e,cfg) ->
-      Node(e, cfg)
+    //match belowLimitWeight model s x, eqLimitCount model s x with
+    //| Leaf b1, Leaf b2 -> Leaf (b1 && b2)
+    //| Node(e,cfg1), Node(_,cfg2) ->
+    //  let cfg = { cfg1 with count=cfg2.count }
+    //  Node(e, cfg)
+    //| Node(e, cfg), _ | _, Node(e,cfg) ->
+    //  Node(e, cfg)
+
+    belowLimitWeight model s x
 
 
   let zdd =
@@ -159,19 +198,22 @@ let main argv =
   List.iteri (fun i a -> printfn "w%d: weight=%d, value=%d" i a.weight a.value) zdd.elements
   //printfn "memoDP:"
   //List.iteri (fun i a -> printfn "N%d = %A" i a) zdd.memoDP
-  printfn "pathes:"
-  List.iteri (fun i (h,b,t) ->
-                let f x =
-                  match x with
-                  | Leaf false -> "[0]" | Leaf true -> "[1]"
-                  | Node(e,cfg) ->
-                    "w"
-                    + string cfg.height
-                    //+ string (List.findIndex (fun x -> e=x) zdd.elements)
-                    + "(" + string cfg.weightSum + ")"
-                let hi, ti = f h, f t
-                let arrow = if b then "---t--->" else "---f--->"
-                printfn "%s" ((string i)+": "+hi+arrow+ti))
-             <| List.rev zdd.pathes
+  //printfn "pathes:"
+  //List.iteri (fun i (h,b,t) ->
+  //              let f x =
+  //                match x with
+  //                | Leaf false -> "[0]" | Leaf true -> "[1]"
+  //                | Node(e,cfg) ->
+  //                  "w"
+  //                  + string cfg.height
+  //                  //+ string (List.findIndex (fun x -> e=x) zdd.elements)
+  //                  + "(" + string cfg.weightSum + ")"
+  //              let hi, ti = f h, f t
+  //              let arrow = if b then "---t--->" else "---f--->"
+  //             printfn "%s" ((string i)+": "+hi+arrow+ti))
+  //           <| List.rev zdd.pathes
+  let a,ws = search zdd
+  printfn "max value: %d." a
+  printfn "and path: %A" ws
 
   0 // return an integer exit code
