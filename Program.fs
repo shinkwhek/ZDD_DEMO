@@ -65,41 +65,41 @@ module ZddModel =
 
 // ---- ---- Knapsack problem ---- ----
 type Element =
-  { wait : int
+  { weight : int
     value : int }
 
 type Cfg =
   { height : int
-    waitSum : int }
+    weightSum : int }
 
 // ---- ---- ---- ---- ---- ----
 
 [<EntryPoint>]
 let main argv =
-  let elements = [ {wait=4;value=10}; {wait=4;value=15}; {wait=5;value=20} ]
+  let elements = [ {weight=4;value=10}; {weight=4;value=15}; {weight=5;value=20} ]
   let limit = 8
 
   let rootCfg elms =
-    Node (List.head elms, {height=0;waitSum=0})
+    Node (List.head elms, {height=0;weightSum=0})
 
   let childCfg model s x =
     match s,x with
     | Node(e, cfg), true when cfg.height+1 = model.lengthElements ->
-      if cfg.waitSum + e.wait > limit
+      if cfg.weightSum + e.weight > limit
       then Leaf false else Leaf true
     | Node(_, cfg), false when cfg.height+1 = model.lengthElements ->
-      if cfg.waitSum > limit
+      if cfg.weightSum > limit
       then Leaf false else Leaf true
     | Node(e, cfg), true ->
       let a = List.item (cfg.height+1) model.elements
-      if cfg.waitSum + e.wait > limit
+      if cfg.weightSum + e.weight > limit
       then Leaf false
       else
-        let cfg = {height=cfg.height+1; waitSum=cfg.waitSum + e.wait}
+        let cfg = {height=cfg.height+1; weightSum=cfg.weightSum + e.weight}
         Node(a, cfg)
     | Node(_, cfg), false ->
       let a = List.item (cfg.height+1) model.elements
-      let cfg = {height=cfg.height+1; waitSum=cfg.waitSum}
+      let cfg = {height=cfg.height+1; weightSum=cfg.weightSum}
       Node(a, cfg)
     | _, _ -> s
 
@@ -109,7 +109,7 @@ let main argv =
 
   printfn "limit: %d" limit
   printfn "elements:"
-  List.iteri (fun i a -> printfn "w%d: wait=%d, value=%d" i a.wait a.value) zdd.elements
+  List.iteri (fun i a -> printfn "w%d: weight=%d, value=%d" i a.weight a.value) zdd.elements
   printfn "memoDP:"
   List.iteri (fun i a -> printfn "N%d = %A" i a) zdd.memoDP
   printfn "pathes:"
@@ -120,7 +120,7 @@ let main argv =
                   | Node(e,cfg) ->
                     "w"
                     + string (List.findIndex (fun x -> e=x) zdd.elements)
-                    + "(" + string cfg.waitSum + ")"
+                    + "(" + string cfg.weightSum + ")"
                 let hi, ti = f h, f t
                 let arrow = if b then "---t--->" else "---f--->"
                 printfn "%s" ((string i)+": "+hi+arrow+ti))
