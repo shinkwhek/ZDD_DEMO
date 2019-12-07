@@ -74,48 +74,91 @@ type Element =
 [<Struct>]
 type Cfg =
   { height : int
-    weightSum : int }
+    weightSum : int
+    count : int}
 
 // ---- ---- ---- ---- ---- ----
 
 [<EntryPoint>]
 let main argv =
   let elements = [ {weight=4;value=10}; {weight=4;value=15}; {weight=5;value=20} ]
-  let limit = 8
+  let limitWeight = 8
+  let limitCount = 2
 
   let rootCfg elms =
-    Node (List.head elms, {height=0;weightSum=0})
-
+    Node (List.head elms, {height=0;weightSum=0;count=0})
+ 
   let childCfg model s x =
-    match s,x with
-    | Node(e, cfg), true when cfg.height+1 = model.lengthElements ->
-      if cfg.weightSum + e.weight > limit
-      then Leaf false else Leaf true
-    | Node(_, cfg), false when cfg.height+1 = model.lengthElements ->
-      if cfg.weightSum > limit
-      then Leaf false else Leaf true
-    | Node(e, cfg), true ->
-      let a = List.item (cfg.height+1) model.elements
-      if cfg.weightSum + e.weight > limit
-      then Leaf false
-      else
-        let cfg = {height=cfg.height+1; weightSum=cfg.weightSum + e.weight}
+    let belowLimitWeight model s x =
+      match s,x with
+      | Node(e, cfg), true when cfg.height+1 = model.lengthElements ->
+        if limitWeight >= cfg.weightSum + e.weight
+        then Leaf true
+        else Leaf false
+      | Node(_, cfg), false when cfg.height+1 = model.lengthElements ->
+        if limitWeight >= cfg.weightSum
+        then Leaf true
+        else Leaf false
+      | Node(e, cfg), true ->
+        let a = List.item (cfg.height+1) model.elements
+        if  limitWeight < cfg.weightSum + e.weight
+        then Leaf false
+        else
+          let cfg = { cfg with
+                        height=cfg.height+1
+                        weightSum=cfg.weightSum + e.weight }
+          Node(a, cfg)
+      | Node(_, cfg), false ->
+        let a = List.item (cfg.height+1) model.elements
+        let cfg = { cfg with
+                      height=cfg.height+1
+                      weightSum=cfg.weightSum }
         Node(a, cfg)
-    | Node(_, cfg), false ->
-      let a = List.item (cfg.height+1) model.elements
-      let cfg = {height=cfg.height+1; weightSum=cfg.weightSum}
-      Node(a, cfg)
-    | _, _ -> s
+      | _, _ -> s
+
+    let eqLimitCount model s x =
+      match s,x with
+      | Node(_,cfg), true when cfg.height+1 = model.lengthElements ->
+        if limitCount = cfg.count+1
+        then Leaf true
+        else Leaf false
+      | Node(_,cfg), false when cfg.height+1 = model.lengthElements ->
+        if limitCount = cfg.count
+        then Leaf true
+        else Leaf false
+      | Node(_,cfg), true ->
+        let a = List.item (cfg.height+1) model.elements
+        let cfg = { cfg with
+                      height=cfg.height
+                      count=cfg.count+1 }
+        Node(a, cfg)
+      | Node(_,cfg), false ->
+        let a = List.item (cfg.height+1) model.elements
+        let cfg = { cfg with
+                      height=cfg.height
+                      count=cfg.count}
+        Node(a, cfg)
+      | _, _ -> s
+
+    match belowLimitWeight model s x, eqLimitCount model s x with
+    | Leaf b1, Leaf b2 -> Leaf (b1 && b2)
+    | Node(e,cfg1), Node(_,cfg2) ->
+      let cfg = { cfg1 with count=cfg2.count }
+      Node(e, cfg)
+    | Node(e, cfg), _ | _, Node(e,cfg) ->
+      Node(e, cfg)
+
 
   let zdd =
     ZddModel.init elements rootCfg childCfg
     |> ZddModel.constract
 
-  printfn "limit: %d" limit
+  printfn "limitWeight: %d" limitWeight
+  printfn "limitCount: %d" limitCount
   printfn "elements:"
   List.iteri (fun i a -> printfn "w%d: weight=%d, value=%d" i a.weight a.value) zdd.elements
-  printfn "memoDP:"
-  List.iteri (fun i a -> printfn "N%d = %A" i a) zdd.memoDP
+  //printfn "memoDP:"
+  //List.iteri (fun i a -> printfn "N%d = %A" i a) zdd.memoDP
   printfn "pathes:"
   List.iteri (fun i (h,b,t) ->
                 let f x =
