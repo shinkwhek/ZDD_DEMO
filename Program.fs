@@ -5,9 +5,11 @@ open FSharpPlus
 
 
 // ---- ---- ZDD Model ---- ----
+[<Struct>]
 type Node<'T, 'E> =
   | Node of elm:'T * cfg:'E
   | Leaf of bool
+[<Struct>]
 type Path<'T, 'E> =
   { head : Node<'T, 'E>
     tag : bool
@@ -64,10 +66,12 @@ module ZddModel =
 
 
 // ---- ---- Knapsack problem ---- ----
+[<Struct>]
 type Element =
   { weight : int
     value : int }
 
+[<Struct>]
 type Cfg =
   { height : int
     weightSum : int }
@@ -119,12 +123,12 @@ let main argv =
                   | Leaf false -> "[0]" | Leaf true -> "[1]"
                   | Node(e,cfg) ->
                     "w"
-                    + string (List.findIndex (fun x -> e=x) zdd.elements)
+                    + string cfg.height
+                    //+ string (List.findIndex (fun x -> e=x) zdd.elements)
                     + "(" + string cfg.weightSum + ")"
                 let hi, ti = f h, f t
                 let arrow = if b then "---t--->" else "---f--->"
                 printfn "%s" ((string i)+": "+hi+arrow+ti))
              <| List.rev zdd.pathes
 
-  //printfn "%A" <| zdd.pathes
   0 // return an integer exit code
