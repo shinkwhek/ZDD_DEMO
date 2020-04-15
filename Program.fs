@@ -12,7 +12,8 @@ type Path<'T, 'E> =
     tag : bool
     tail : Node<'T, 'E> }
 
-type ZddModel<'T, 'E when 'T : comparison and 'E : comparison> =
+type ZddModel<'T, 'E when 'T : comparison
+                      and 'E : comparison> =
   { elements : 'T list
     lengthElements : int
     memoDP : Set<Node<'T, 'E>> list
@@ -22,23 +23,20 @@ type ZddModel<'T, 'E when 'T : comparison and 'E : comparison> =
 module ZddModel =
   let init elms rootCfg childCfg =
     let n = List.length elms
-    let memo0 = Set.add (rootCfg elms) Set.empty
-    let memoOther = List.replicate (n-1) Set.empty
+    let memo = List.append [Set.add (rootCfg elms) Set.empty] <| List.replicate (n-1) Set.empty
     { elements = elms
       lengthElements = n
-      memoDP = memo0::memoOther
+      memoDP = memo
       pathes = []
       childCfg = childCfg}
 
   let constract model =
-    let inline g f a b = a |> f b
-    let rec f model i =
+    let rec go i model =
       if model.lengthElements > i then
         let setCurrent = List.item i model.memoDP
         let searchSet s model =
           match s with
-          | Leaf _ ->
-            model
+          | Leaf _ -> model
           | s ->
             let searchBranch x model =
               match model.childCfg model s x with
@@ -46,20 +44,19 @@ module ZddModel =
                 let pathes = {head=s; tag=x; tail=Leaf a}::model.pathes
                 {model with pathes = pathes}
               | Node(e, cfg) ->
-                let setNext = List.item (i+1) model.memoDP
-                let setNext = Set.add (Node (e,cfg)) setNext
-                let memoDP = mapi (fun a x -> if a = i+1 then setNext else x) model.memoDP
+                let setNext = model.memoDP |> List.item (i+1) |> Set.add (Node (e,cfg))
+                let memoDP = model.memoDP |> mapi (fun a x -> if a = i+1 then setNext else x)
                 let pathes = {head=s; tag=x; tail=Node(e,cfg)}::model.pathes
                 {model with memoDP = memoDP; pathes = pathes}
 
             model |> searchBranch false |> searchBranch true
 
-        let model = fold (g searchSet) model <| Set.toList setCurrent
-        f model (i+1)
+        let model = setCurrent |> Set.toList |> fold (fun a b -> a |> searchSet b) model
+        go (i+1) model
       else
         model
 
-    f model 0
+    go 0 model
 
 
 // ---- ---- Knapsack problem ---- ----
@@ -76,29 +73,27 @@ type Cfg =
 
 let search model =
   let pathes = model.pathes
-  let f b e =
-    function
+  let f b e = function
     | {head=Node(e2, cfg); tag=b2} when e=Node(e2,cfg) && b=b2 -> true
     | _ -> false
 
-  let rec iter w ws =
+  let rec go w ws =
     match w with
     | Leaf false -> Int32.MinValue, ws
     | Leaf true -> 0, ws
     | Node(elm, _) ->
-      let falseB = (fun x -> x.tail) <| List.find (f false w) pathes
-      let trueB = (fun x -> x.tail) <| List.find (f true w) pathes
-      let (a,wsa),(b,wsb) = iter falseB ws, iter trueB ws
+      let falseBranch = pathes |> List.find (f false w) |> (fun x -> x.tail)
+      let trueBranch = pathes |> List.find (f true w) |> (fun x -> x.tail)
+      let (a,wsa),(b,wsb) = go falseBranch ws, go trueBranch ws
       if a > b+elm.value
       then a, wsa
       else b+elm.value, elm::wsb
 
   let e0 = List.head model.elements
-  let init = (fun x -> x.head) <| List.find (function
-                                              | {head=Node(e2,_)} when e0=e2 -> true
-                                              | _ -> false)
-                                            pathes
-  iter init []
+  let init = pathes
+             |> List.find (function | {head=Node(e2, _)} when e0=e2 -> true | _ -> false)
+             |> (fun x -> x.head)
+  go init []
 
 // ---- ---- ---- ---- ---- ----
 
@@ -108,7 +103,7 @@ let main argv =
   let elements =
     [ {value=3; weight=4}
       {value=4; weight=4}
-      {value=5; weight=5}]
+      {value=5; weight=5} ]
   let limitWeight = 8
   let limitCount = 2
 
@@ -116,66 +111,35 @@ let main argv =
     Node (List.head elms, {height=0;weightSum=0;count=0})
  
   let childCfg model s x =
-    let belowLimitWeight model s x =
-      match s,x with
-      | Node(e, cfg), true when cfg.height+1 = model.lengthElements ->
-        if limitWeight >= cfg.weightSum + e.weight
-        then Leaf true
-        else Leaf false
-      | Node(_, cfg), false when cfg.height+1 = model.lengthElements ->
-        if limitWeight >= cfg.weightSum
-        then Leaf true
-        else Leaf false
-      | Node(e, cfg), true ->
-        let a = List.item (cfg.height+1) model.elements
-        if  limitWeight < cfg.weightSum + e.weight
-        then Leaf false
-        else
-          let cfg = { cfg with
+    match s,x with
+    | Node(e, cfg), true when cfg.height+1 = model.lengthElements ->
+      if limitWeight >= cfg.weightSum + e.weight
+      then Leaf true
+      else Leaf false
+
+    | Node(_, cfg), false when cfg.height+1 = model.lengthElements ->
+      if limitWeight >= cfg.weightSum
+      then Leaf true
+      else Leaf false
+
+    | Node(e, cfg), true ->
+      let a = List.item (cfg.height+1) model.elements
+      if  limitWeight < cfg.weightSum + e.weight
+      then Leaf false
+      else
+        let cfg = { cfg with
                         height=cfg.height+1
                         weightSum=cfg.weightSum + e.weight }
-          Node(a, cfg)
-      | Node(_, cfg), false ->
-        let a = List.item (cfg.height+1) model.elements
-        let cfg = { cfg with
+        Node(a, cfg)
+          
+    | Node(_, cfg), false ->
+      let a = List.item (cfg.height+1) model.elements
+      let cfg = { cfg with
                       height=cfg.height+1
                       weightSum=cfg.weightSum }
-        Node(a, cfg)
-      | _, _ -> s
+      Node(a, cfg)
 
-    let eqLimitCount model s x =
-      match s,x with
-      | Node(_,cfg), true when cfg.height+1 = model.lengthElements ->
-        if limitCount = cfg.count+1
-        then Leaf true
-        else Leaf false
-      | Node(_,cfg), false when cfg.height+1 = model.lengthElements ->
-        if limitCount = cfg.count
-        then Leaf true
-        else Leaf false
-      | Node(_,cfg), true ->
-        let a = List.item (cfg.height+1) model.elements
-        let cfg = { cfg with
-                      height=cfg.height
-                      count=cfg.count+1 }
-        Node(a, cfg)
-      | Node(_,cfg), false ->
-        let a = List.item (cfg.height+1) model.elements
-        let cfg = { cfg with
-                      height=cfg.height
-                      count=cfg.count}
-        Node(a, cfg)
-      | _, _ -> s
-
-    //match belowLimitWeight model s x, eqLimitCount model s x with
-    //| Leaf b1, Leaf b2 -> Leaf (b1 && b2)
-    //| Node(e,cfg1), Node(_,cfg2) ->
-    //  let cfg = { cfg1 with count=cfg2.count }
-    //  Node(e, cfg)
-    //| Node(e, cfg), _ | _, Node(e,cfg) ->
-    //  Node(e, cfg)
-
-    belowLimitWeight model s x
+    | _, _ -> s
 
 
   let zdd =
