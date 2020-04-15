@@ -1,8 +1,5 @@
-﻿// Learn more about F# at http://fsharp.org
-
-open System
+﻿open System
 open FSharpPlus
-
 
 // ---- ---- ZDD Model ---- ----
 [<Struct>]
@@ -19,7 +16,7 @@ type ZddModel<'T, 'E when 'T : comparison and 'E : comparison> =
   { elements : 'T list
     lengthElements : int
     memoDP : Set<Node<'T, 'E>> list
-    pathes : (Node<'T, 'E> * bool * Node<'T, 'E>) list
+    pathes : Path<'T, 'E> list
     childCfg : ZddModel<'T, 'E> -> Node<'T, 'E> -> bool -> Node<'T, 'E> }
 
 module ZddModel =
@@ -46,13 +43,13 @@ module ZddModel =
             let searchBranch x model =
               match model.childCfg model s x with
               | Leaf(a) -> 
-                let pathes = (s, x, Leaf a)::model.pathes
+                let pathes = {head=s; tag=x; tail=Leaf a}::model.pathes
                 {model with pathes = pathes}
               | Node(e, cfg) ->
                 let setNext = List.item (i+1) model.memoDP
                 let setNext = Set.add (Node (e,cfg)) setNext
                 let memoDP = mapi (fun a x -> if a = i+1 then setNext else x) model.memoDP
-                let pathes = (s, x, Node(e,cfg))::model.pathes
+                let pathes = {head=s; tag=x; tail=Node(e,cfg)}::model.pathes
                 {model with memoDP = memoDP; pathes = pathes}
 
             model |> searchBranch false |> searchBranch true
@@ -81,7 +78,7 @@ let search model =
   let pathes = model.pathes
   let f b e =
     function
-    | (Node(e2, cfg), b2, _) when e=Node(e2,cfg) && b=b2 -> true
+    | {head=Node(e2, cfg); tag=b2} when e=Node(e2,cfg) && b=b2 -> true
     | _ -> false
 
   let rec iter w ws =
@@ -89,18 +86,18 @@ let search model =
     | Leaf false -> Int32.MinValue, ws
     | Leaf true -> 0, ws
     | Node(elm, _) ->
-      let falseB = (fun (_,_,tl) -> tl) <| List.find (f false w) pathes
-      let trueB = (fun (_,_,tl) -> tl) <| List.find (f true w) pathes
+      let falseB = (fun x -> x.tail) <| List.find (f false w) pathes
+      let trueB = (fun x -> x.tail) <| List.find (f true w) pathes
       let (a,wsa),(b,wsb) = iter falseB ws, iter trueB ws
       if a > b+elm.value
       then a, wsa
       else b+elm.value, elm::wsb
 
   let e0 = List.head model.elements
-  let init = (fun (h,_,_) -> h) <| List.find (function
-                                             | (Node(e2,_),_,_) when e0=e2 -> true
-                                             | _ -> false)
-                                           pathes
+  let init = (fun x -> x.head) <| List.find (function
+                                              | {head=Node(e2,_)} when e0=e2 -> true
+                                              | _ -> false)
+                                            pathes
   iter init []
 
 // ---- ---- ---- ---- ---- ----
@@ -109,17 +106,10 @@ let search model =
 [<EntryPoint>]
 let main argv =
   let elements =
-    [ {value=981421680; weight=325}
-      {value=515936168; weight=845}
-      {value=17309336; weight=371}
-      {value=788067075; weight=112}
-      {value=104855562; weight=96}
-      {value=494541604; weight=960}
-      {value=32007355; weight=161}
-      {value=772339969; weight=581}
-      {value=55112800; weight=248}
-      {value=98577050; weight=22}]
-  let limitWeight = 2921
+    [ {value=3; weight=4}
+      {value=4; weight=4}
+      {value=5; weight=5}]
+  let limitWeight = 8
   let limitCount = 2
 
   let rootCfg elms =
@@ -193,27 +183,27 @@ let main argv =
     |> ZddModel.constract
 
   printfn "limitWeight: %d" limitWeight
-  printfn "limitCount: %d" limitCount
+  //printfn "limitCount: %d" limitCount
   printfn "elements:"
   List.iteri (fun i a -> printfn "w%d: weight=%d, value=%d" i a.weight a.value) zdd.elements
   //printfn "memoDP:"
   //List.iteri (fun i a -> printfn "N%d = %A" i a) zdd.memoDP
-  //printfn "pathes:"
-  //List.iteri (fun i (h,b,t) ->
-  //              let f x =
-  //                match x with
-  //                | Leaf false -> "[0]" | Leaf true -> "[1]"
-  //                | Node(e,cfg) ->
-  //                  "w"
-  //                  + string cfg.height
-  //                  //+ string (List.findIndex (fun x -> e=x) zdd.elements)
-  //                  + "(" + string cfg.weightSum + ")"
-  //              let hi, ti = f h, f t
-  //              let arrow = if b then "---t--->" else "---f--->"
-  //             printfn "%s" ((string i)+": "+hi+arrow+ti))
-  //           <| List.rev zdd.pathes
-  let a,ws = search zdd
-  printfn "max value: %d." a
-  printfn "and path: %A" ws
+  printfn "pathes:"
+  List.iteri (fun i {head=h; tag=b; tail=t} ->
+                let f x =
+                  match x with
+                  | Leaf false -> "[0]" | Leaf true -> "[1]"
+                  | Node(e,cfg) ->
+                    "w"
+                    + string cfg.height
+                    //+ string (List.findIndex (fun x -> e=x) zdd.elements)
+                    + "(" + string cfg.weightSum + ")"
+                let hi, ti = f h, f t
+                let arrow = if b then "---t--->" else "---f--->"
+                printfn "%s" ((string i)+": "+hi+arrow+ti))
+             <| List.rev zdd.pathes
+  //let a,ws = search zdd
+  //printfn "max value: %d." a
+  //printfn "and path: %A" ws
 
   0 // return an integer exit code
